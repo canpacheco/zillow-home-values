@@ -113,7 +113,7 @@ function render() {
   }), { horizontal: false, thickness: 60 });
   const top50 = s.metros.filter(m => m.tier === 'Top 50').sort((a, b) => a.fromPeak - b.fromPeak);
   barChart('c_top50', top50.map(m => m.metro), top50.map(m => m.fromPeak),
-           { thickness: 9, onClick: metro => { location.href = 'dashboard.html#metro=' + encodeURIComponent(metro); } });
+           { thickness: 10, allLabels: true, onClick: metro => { location.href = 'dashboard.html#metro=' + encodeURIComponent(metro); } });
 }
 
 initPage(() => { if (summary) render(); });

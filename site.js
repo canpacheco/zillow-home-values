@@ -139,7 +139,7 @@ function barChart(id, labels, data, opts) {
   const d = chartDefaults();
   if (charts[id]) charts[id].destroy();
   const value = { ticks: { color: d.text, callback: v => v + '%' }, grid: { color: d.grid } };
-  const cat = { ticks: { color: d.text }, grid: { display: false } };
+  const cat = { ticks: { color: d.text, autoSkip: !opts.allLabels, font: opts.allLabels ? { size: 11 } : undefined }, grid: { display: false } };
   charts[id] = new Chart(document.getElementById(id), {
     type: 'bar',
     data: { labels, datasets: [{ data, backgroundColor: data.map(v => v >= 0 ? css('--up') : css('--down')),
