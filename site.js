@@ -114,7 +114,8 @@ function barChart(id, labels, data, opts) {
     options: { indexAxis: opts.horizontal === false ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false },
                  tooltip: { callbacks: { label: c => fmtPct(c.raw) } } },
-      scales: { x: { ticks: { callback: v => v + '%' }, grid: { color: '#eeede9' } },
-                y: { grid: { display: false } } } }
+      scales: opts.horizontal === false
+        ? { y: { ticks: { callback: v => v + '%' }, grid: { color: '#eeede9' } }, x: { grid: { display: false } } }
+        : { x: { ticks: { callback: v => v + '%' }, grid: { color: '#eeede9' } }, y: { grid: { display: false } } } }
   });
 }
