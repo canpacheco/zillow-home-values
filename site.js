@@ -146,6 +146,7 @@ function barChart(id, labels, data, opts) {
             borderRadius: 4, barThickness: opts.thickness || 14 }] },
     options: { indexAxis: opts.horizontal === false ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
       animation: { duration: 600 },
+      interaction: { mode: 'index', axis: opts.horizontal === false ? 'x' : 'y', intersect: false },
       onClick: (ev, els) => { if (opts.onClick && els.length) opts.onClick(labels[els[0].index]); },
       onHover: (ev, els) => { ev.native.target.style.cursor = (opts.onClick && els.length) ? 'pointer' : 'default'; },
       plugins: { legend: { display: false },

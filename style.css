@@ -57,8 +57,8 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .kpi .value { font-size: 1.8rem; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 12px; }
 .chart { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
-.chart canvas { width: 100% !important; height: 300px !important; }
-.chart.tall canvas { height: 760px !important; }
+.chart .wrap { position: relative; height: 300px; }
+.chart.tall .wrap { height: 760px; }
 .chart .hint { font-size: 0.8rem; color: var(--muted); margin: 0 0 6px; }
 .finding p { margin: 0 0 14px; }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
@@ -68,7 +68,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .spotlight.on { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
 .spotlight .facts div { margin: 4px 0; }
 .spotlight .facts strong { font-size: 1.15rem; }
-.spotlight canvas { width: 100% !important; height: 220px !important; }
+.spotlight .wrap { position: relative; height: 220px; }
 .spotlight .close { float: right; }
 .map { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
 .map svg { width: 100%; height: auto; display: block; }
