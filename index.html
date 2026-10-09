@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metro home values: report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="brand">Metro home values</span>
+  <a href="index.html" class="active">Report</a>
+  <a href="dashboard.html">Dashboard</a>
+</nav>
+<header>
+  <h1>Where has the pandemic housing boom held, and where has it reversed?</h1>
+  <p class="sub">Zillow Home Value Index, one row per metro per month, 894 US metros, January 2015 to August 2026.
+     The numbers below cover January 2020 to August 2026. Prepared by Cathy Pacheco for the head of mortgage
+     lending at a regional bank.</p>
+</header>
+<main>
+  <section class="lede">
+    <p>The boom has held almost everywhere: the median metro's home value is up about 50 percent since January 2020
+       and was still at its high in August 2026. It has reversed in one metro out of seven, and those metros sit
+       mostly in the South and West, led by Texas and Florida. For a lender deciding where to grow, the
+       recommendation is to expand in metros that are still at their peak with steady gains, in the Northeast and
+       Midwest above all, and to hold new volume in any metro that is more than 5 percent below its peak until its
+       value has stopped falling.</p>
+  </section>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">Metros in view</div><div class="value" id="k_metros"></div></div>
+    <div class="kpi"><div class="label">Median home value, last month</div><div class="value" id="k_value"></div></div>
+    <div class="kpi"><div class="label">Median change over the range</div><div class="value" id="k_change"></div></div>
+    <div class="kpi"><div class="label">Metros more than 5% below peak</div><div class="value" id="k_below"></div></div>
+  </div>
+
+  <section class="finding">
+    <h2>The median metro is up half since January 2020 and is still rising</h2>
+    <p>The median home value across the 894 metros rose from $169,626 in January 2020 to $255,438 in August 2026,
+       a gain of 50.6 percent, and August 2026 is the highest month in the series. The median of each metro's own
+       change over the period is 49.9 percent. The pace has slowed rather than reversed: the median value grew
+       3.4 percent over the twelve months to August 2026, against gains of 13.6 percent in 2021 and 9.1 percent in 2022, December to December.
+       Nothing in the national line says boom over.</p>
+    <div class="chart"><h3>Median home value across metros, by month</h3><canvas id="c_line"></canvas></div>
+  </section>
+
+  <section class="finding">
+    <h2>The reversal is a Southern and Western story</h2>
+    <p>Every region gained over the period, with the median metro up 59.1 percent in the Northeast, 53.6 percent in
+       the Midwest, 47.0 percent in the South, and 46.9 percent in the West. The difference is in what has happened
+       since the peak. One Southern metro in four (90 of 358) and one Western metro in five (34 of 174) is more than
+       5 percent below its highest value since 2020. In the Northeast and Midwest that is true of 2 metros out of 89
+       and 2 out of 273. Texas has 28 metros below their peak and Florida 20, more than any other state.</p>
+    <div class="chart"><h3>Share of metros more than 5% below their peak, by region</h3><canvas id="c_region"></canvas></div>
+  </section>
+
+  <section class="finding">
+    <h2>Among the 50 largest metros, Hartford leads and Austin has given back the most</h2>
+    <p>Hartford, CT gained 71.4 percent since January 2020 and was at its high in August 2026. Austin, TX gained
+       26.3 percent over the same period but is 26.8 percent below its June 2022 peak, the largest drop among the
+       large metros, followed by New Orleans (11.8 percent below peak), Phoenix (11.2 percent), San Antonio (10.1
+       percent), and Denver (9.0 percent). Fifteen of the 49 large metros in the file are more than 5 percent below
+       their peak, a higher share than among smaller metros (11.6 and 13.7 percent in the two smaller tiers), so the reversal is concentrated in
+       the markets that boomed hardest.</p>
+    <div class="chart tall"><h3>Distance from peak since 2020, the 50 largest metros</h3><canvas id="c_top50"></canvas></div>
+  </section>
+
+  <section class="about">
+    <h2>About the data</h2>
+    <p><strong>Where the data come from.</strong> Zillow Research publishes the Zillow Home Value Index (ZHVI) at
+       zillow.com/research/data. The file used here is the all-homes, middle-tier, smoothed, seasonally adjusted
+       series for metro areas, which Zillow publishes as one wide file with a column per month. It was reshaped in
+       Python so that one row is one metro in one month, and the census region and size tier were added from the
+       state and from Zillow's size rank.</p>
+    <p><strong>What one row is.</strong> One US metro area in one month, with Zillow's typical home value for that
+       metro in that month, from January 2015 to August 2026. The file holds 894 metros and 124,619 rows.</p>
+    <p><strong>What is dropped.</strong> The United States total row, because it is not a metro, and all months
+       before January 2015, to keep the file small. Metros with no value in a month have no row for that month.</p>
+    <p><strong>How each summary number is computed</strong>, over the metros that pass the filters and the months
+       in the range, which on this page is every metro from January 2020 to August 2026.
+       <em>Metros in view</em> is the number of metros with at least one row in the range.
+       <em>Median home value, last month</em> is the median across those metros of the home value in the last month
+       of the range.
+       <em>Median change over the range</em> takes each metro's value in the last month of the range divided by its
+       value in the first month, minus one, and reports the median of those changes.
+       <em>Metros more than 5% below peak</em> is the share of metros whose value in the last month of the range is
+       more than 5 percent below that metro's highest value inside the range.
+       The size tiers are Zillow's size rank: the 50 largest metros, ranks 51 to 200, and 201 and up; one of the
+       top 50 has no values in the file, so 49 appear.</p>
+  </section>
+</main>
+
+<script src="site.js"></script>
+<script>
+loadRows().then(rows => {
+  const view = rows.filter(r => r.month >= '2020-01-01' && r.month <= '2026-08-01');
+  const s = summarize(view);
+  writeKpis(s.kpis);
+
+  lineChart('c_line', s.months.map(monthLabel), s.months.map(m => median(s.byMonth.get(m))));
+
+  const regions = ['Northeast', 'Midwest', 'South', 'West'];
+  barChart('c_region', regions, regions.map(r => {
+    const ms = s.metros.filter(m => m.region === r);
+    return 100 * ms.filter(m => m.fromPeak < -5).length / ms.length;
+  }), { horizontal: false, thickness: 60 });
+
+  const top50 = s.metros.filter(m => m.tier === 'Top 50').sort((a, b) => a.fromPeak - b.fromPeak);
+  barChart('c_top50', top50.map(m => m.metro), top50.map(m => m.fromPeak), { thickness: 9 });
+});
+</script>
+</body>
+</html>

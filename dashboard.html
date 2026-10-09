@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metro home values: dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <span class="brand">Metro home values</span>
+  <a href="index.html">Report</a>
+  <a href="dashboard.html" class="active">Dashboard</a>
+</nav>
+<header>
+  <h1>Where has the pandemic housing boom held, and where has it reversed?</h1>
+  <p class="sub">Zillow Home Value Index, one row per metro per month, 894 US metros, January 2015 to August 2026.
+     Prepared by Cathy Pacheco for the head of mortgage lending at a regional bank.</p>
+</header>
+<main>
+  <div class="filters">
+    <label>Census region <select id="region"></select></label>
+    <label>Metro size <select id="tier"></select></label>
+    <label>State <select id="state"></select></label>
+    <label>From <select id="start"></select></label>
+    <label>To <select id="end"></select></label>
+    <button id="reset">Reset filters</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">Metros in view</div><div class="value" id="k_metros"></div></div>
+    <div class="kpi"><div class="label">Median home value, last month</div><div class="value" id="k_value"></div></div>
+    <div class="kpi"><div class="label">Median change over the range</div><div class="value" id="k_change"></div></div>
+    <div class="kpi"><div class="label">Metros more than 5% below peak</div><div class="value" id="k_below"></div></div>
+  </div>
+
+  <div class="charts">
+    <div class="chart"><h3>Median home value by month</h3><canvas id="c_line"></canvas></div>
+    <div class="chart"><h3>Median change over the range, by region</h3><canvas id="c_region"></canvas></div>
+    <div class="chart"><h3>Ten largest changes over the range</h3><canvas id="c_top"></canvas></div>
+    <div class="chart"><h3>Ten smallest changes over the range</h3><canvas id="c_bottom"></canvas></div>
+  </div>
+
+  <table id="tbl">
+    <thead><tr><th>Metro</th><th>State</th><th>Region</th>
+      <th class="num">Value, first month</th><th class="num">Value, last month</th>
+      <th class="num">Change</th><th class="num">From peak</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <p class="note">The table shows the 50 metros in view with the largest change over the range. The summary numbers
+     are defined in the report's About the data section: the median value across the metros in view for the last
+     month of the range; each metro's last-month value over its first-month value, minus one, with the median of
+     those changes reported; and the share of metros whose last-month value is more than 5 percent below their
+     highest value inside the range.</p>
+</main>
+
+<script src="site.js"></script>
+<script>
+let rows = [];
+
+function fill(id, values, first) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '';
+  if (first !== undefined) sel.add(new Option(first, ''));
+  values.forEach(v => sel.add(new Option(id === 'start' || id === 'end' ? monthLabel(v) : v, v)));
+}
+
+function setup() {
+  const uniq = k => [...new Set(rows.map(r => r[k]))].sort();
+  fill('region', uniq('census_region'), 'All regions');
+  fill('tier', ['Top 50', '51 to 200', '201 and up'], 'All sizes');
+  fill('state', uniq('state'), 'All states');
+  const months = uniq('month');
+  fill('start', months); fill('end', months);
+  document.getElementById('start').value = '2020-01-01';
+  document.getElementById('end').value = months[months.length - 1];
+  ['region', 'tier', 'state', 'start', 'end'].forEach(id =>
+    document.getElementById(id).addEventListener('change', update));
+  document.getElementById('reset').addEventListener('click', () => {
+    ['region', 'tier', 'state'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('start').value = '2020-01-01';
+    document.getElementById('end').value = months[months.length - 1];
+    update();
+  });
+  update();
+}
+
+function update() {
+  const g = id => document.getElementById(id).value;
+  const region = g('region'), tier = g('tier'), state = g('state');
+  let start = g('start'), end = g('end');
+  if (start > end) { [start, end] = [end, start]; }
+  const view = rows.filter(r => (!region || r.census_region === region) && (!tier || r.size_tier === tier)
+                             && (!state || r.state === state) && r.month >= start && r.month <= end);
+  const s = summarize(view);
+  writeKpis(s.kpis);
+
+  lineChart('c_line', s.months.map(monthLabel), s.months.map(m => median(s.byMonth.get(m))));
+  const regions = ['Northeast', 'Midwest', 'South', 'West'].filter(r => s.metros.some(m => m.region === r));
+  barChart('c_region', regions, regions.map(r => median(s.metros.filter(m => m.region === r).map(m => m.change))));
+  const top = s.metros.slice(0, 10), bottom = s.metros.slice(-10).reverse();
+  barChart('c_top', top.map(m => m.metro), top.map(m => m.change));
+  barChart('c_bottom', bottom.map(m => m.metro), bottom.map(m => m.change));
+
+  document.querySelector('#tbl tbody').innerHTML = s.metros.slice(0, 50).map(m =>
+    `<tr><td>${m.metro}</td><td>${m.state}</td><td>${m.region}</td>` +
+    `<td class="num">${fmtMoney(m.first)}</td><td class="num">${fmtMoney(m.last)}</td>` +
+    `<td class="num">${fmtPct(m.change)}</td><td class="num">${fmtPct(m.fromPeak)}</td></tr>`).join('');
+}
+
+loadRows().then(r => { rows = r; setup(); });
+</script>
+</body>
+</html>
