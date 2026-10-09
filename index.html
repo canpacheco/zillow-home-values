@@ -70,7 +70,7 @@
        percent), and Denver (9.0 percent). Fifteen of the 49 large metros in the file are more than 5 percent below
        their peak, a higher share than among smaller metros (11.6 and 13.7 percent in the two smaller tiers), so the reversal is concentrated in
        the markets that boomed hardest.</p>
-    <div class="chart tall"><h3>Distance from peak since 2020, the 50 largest metros</h3>
+    <div class="chart tall"><h3>Distance from peak since 2020: the 20 largest drops among the 50 largest metros</h3>
       <p class="hint">Click a bar to open that metro on the dashboard.</p><div class="wrap"><canvas id="c_top50"></canvas></div></div>
   </section>
 
@@ -111,9 +111,9 @@ function render() {
     const ms = s.metros.filter(m => m.region === r);
     return 100 * ms.filter(m => m.fromPeak < -5).length / ms.length;
   }), { horizontal: false, thickness: 60 });
-  const top50 = s.metros.filter(m => m.tier === 'Top 50').sort((a, b) => a.fromPeak - b.fromPeak);
+  const top50 = s.metros.filter(m => m.tier === 'Top 50').sort((a, b) => a.fromPeak - b.fromPeak).slice(0, 20);
   barChart('c_top50', top50.map(m => m.metro), top50.map(m => m.fromPeak),
-           { thickness: 10, allLabels: true, onClick: metro => { location.href = 'dashboard.html#metro=' + encodeURIComponent(metro); } });
+           { thickness: 16, allLabels: true, onClick: metro => { location.href = 'dashboard.html#metro=' + encodeURIComponent(metro); } });
 }
 
 initPage(() => { if (summary) render(); });

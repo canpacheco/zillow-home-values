@@ -58,7 +58,7 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(460px, 1fr)); gap: 12px; }
 .chart { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
 .chart .wrap { position: relative; height: 300px; }
-.chart.tall .wrap { height: 920px; }
+.chart.tall .wrap { height: 560px; }
 .chart .hint { font-size: 0.8rem; color: var(--muted); margin: 0 0 6px; }
 .finding p { margin: 0 0 14px; }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
