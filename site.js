@@ -1,8 +1,9 @@
 // Shared code for the report page and the dashboard page.
 // Loads zillow_metro_home_values.csv in the browser and computes every number there.
 
-const UP = '#2a78d6';
-const DOWN = '#e34948';
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---------- data ----------
 
 function parseCSV(text) {
   const out = [];
@@ -54,12 +55,12 @@ function summarize(view) {
     let m = byMetro.get(r.metro);
     if (!m) {
       m = { metro: r.metro, state: r.state, region: r.census_region, tier: r.size_tier,
-            rank: r.size_rank, first: null, last: null, peak: 0 };
+            rank: r.size_rank, first: null, last: null, peak: 0, peakMonth: null };
       byMetro.set(r.metro, m);
     }
     if (m.first === null || r.month < m.firstMonth) { m.first = r.home_value; m.firstMonth = r.month; }
     if (m.last === null || r.month > m.lastMonth) { m.last = r.home_value; m.lastMonth = r.month; }
-    if (r.home_value > m.peak) m.peak = r.home_value;
+    if (r.home_value > m.peak) { m.peak = r.home_value; m.peakMonth = r.month; }
     if (!byMonth.has(r.month)) byMonth.set(r.month, []);
     byMonth.get(r.month).push(r.home_value);
   }
@@ -81,41 +82,103 @@ function summarize(view) {
   };
 }
 
-function writeKpis(k) {
-  document.getElementById('k_metros').textContent = k.metros.toLocaleString();
-  document.getElementById('k_value').textContent = fmtMoney(k.medianLast);
-  document.getElementById('k_change').textContent = fmtPct(k.medianChange);
-  document.getElementById('k_below').textContent =
-    k.belowShare == null ? '--' : k.belowShare.toFixed(0) + '% (' + k.belowCount + ')';
+// ---------- counting numbers ----------
+
+const shown = {};
+function animateTo(el, target, render, ms) {
+  if (target == null || isNaN(target)) { el.textContent = render(null); return; }
+  const from = shown[el.id] == null ? 0 : shown[el.id];
+  shown[el.id] = target;
+  const t0 = performance.now();
+  const dur = ms || 700;
+  function frame(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = render(from + (target - from) * e);
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 }
 
-const charts = {};
+function writeKpis(k) {
+  animateTo(document.getElementById('k_metros'), k.metros, v => Math.round(v).toLocaleString());
+  animateTo(document.getElementById('k_value'), k.medianLast, v => v == null ? '--' : fmtMoney(v));
+  animateTo(document.getElementById('k_change'), k.medianChange, v => v == null ? '--' : fmtPct(v));
+  const count = k.belowCount;
+  animateTo(document.getElementById('k_below'), k.belowShare,
+    v => v == null ? '--' : v.toFixed(0) + '% (' + Math.round(count * (k.belowShare ? v / k.belowShare : 1)) + ')');
+}
 
-function lineChart(id, labels, data) {
+// ---------- charts ----------
+
+const charts = {};
+const chartDefaults = () => ({ grid: css('--grid'), text: css('--muted') });
+
+function lineChart(id, labels, datasets, opts) {
+  opts = opts || {};
+  const d = chartDefaults();
   if (charts[id]) charts[id].destroy();
+  const money = opts.format !== 'pct';
   charts[id] = new Chart(document.getElementById(id), {
     type: 'line',
-    data: { labels, datasets: [{ data, borderColor: UP, borderWidth: 2, pointRadius: 0, tension: 0.2 }] },
+    data: { labels, datasets: datasets.map((s, i) => ({ label: s.label, data: s.data,
+            borderColor: s.color || css('--up'), borderWidth: i === 0 ? 2.5 : 1.5,
+            borderDash: s.dash ? [5, 4] : [], pointRadius: 0, tension: 0.2 })) },
     options: { responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
       interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtMoney(c.raw) } } },
-      scales: { y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#eeede9' } },
-                x: { ticks: { maxTicksLimit: 8 }, grid: { display: false } } } }
+      plugins: { legend: { display: datasets.length > 1, labels: { color: d.text, boxWidth: 12 } },
+                 tooltip: { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + (money ? fmtMoney(c.raw) : fmtPct(c.raw)) } } },
+      scales: { y: { ticks: { color: d.text, callback: v => money ? '$' + (v / 1000).toFixed(0) + 'k' : v + '%' }, grid: { color: d.grid } },
+                x: { ticks: { color: d.text, maxTicksLimit: 8 }, grid: { display: false } } } }
   });
 }
 
 function barChart(id, labels, data, opts) {
   opts = opts || {};
+  const d = chartDefaults();
   if (charts[id]) charts[id].destroy();
+  const value = { ticks: { color: d.text, callback: v => v + '%' }, grid: { color: d.grid } };
+  const cat = { ticks: { color: d.text }, grid: { display: false } };
   charts[id] = new Chart(document.getElementById(id), {
     type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: data.map(v => v >= 0 ? UP : DOWN),
+    data: { labels, datasets: [{ data, backgroundColor: data.map(v => v >= 0 ? css('--up') : css('--down')),
             borderRadius: 4, barThickness: opts.thickness || 14 }] },
     options: { indexAxis: opts.horizontal === false ? 'x' : 'y', responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      onClick: (ev, els) => { if (opts.onClick && els.length) opts.onClick(labels[els[0].index]); },
+      onHover: (ev, els) => { ev.native.target.style.cursor = (opts.onClick && els.length) ? 'pointer' : 'default'; },
       plugins: { legend: { display: false },
                  tooltip: { callbacks: { label: c => fmtPct(c.raw) } } },
-      scales: opts.horizontal === false
-        ? { y: { ticks: { callback: v => v + '%' }, grid: { color: '#eeede9' } }, x: { grid: { display: false } } }
-        : { x: { ticks: { callback: v => v + '%' }, grid: { color: '#eeede9' } }, y: { grid: { display: false } } } }
+      scales: opts.horizontal === false ? { y: value, x: cat } : { x: value, y: cat } }
+  });
+}
+
+// ---------- page behavior: theme, reveal, progress ----------
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  try { localStorage.setItem('theme', theme); } catch (e) {}
+  const b = document.getElementById('theme');
+  if (b) b.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+}
+
+function initPage(onThemeChange) {
+  let theme = 'light';
+  try { theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}
+  applyTheme(theme);
+  const b = document.getElementById('theme');
+  if (b) b.addEventListener('click', () => {
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    if (onThemeChange) onThemeChange();
+  });
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  const bar = document.getElementById('progress');
+  if (bar) addEventListener('scroll', () => {
+    const h = document.documentElement;
+    bar.style.width = (100 * h.scrollTop / (h.scrollHeight - h.clientHeight)) + '%';
   });
 }

@@ -4,14 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Metro home values: dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <nav>
-  <span class="brand">Metro home values</span>
-  <a href="index.html">Report</a>
-  <a href="dashboard.html" class="active">Dashboard</a>
+  <div class="inner">
+    <span class="brand">Metro home values</span>
+    <a href="index.html">Report</a>
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <button id="theme" type="button">Dark mode</button>
+  </div>
+  <div id="progress"></div>
 </nav>
 <header>
   <h1>Where has the pandemic housing boom held, and where has it reversed?</h1>
@@ -25,7 +33,16 @@
     <label>State <select id="state"></select></label>
     <label>From <select id="start"></select></label>
     <label>To <select id="end"></select></label>
-    <button id="reset">Reset filters</button>
+    <label>Find a metro <input id="search" list="metros" placeholder="Type a metro name" autocomplete="off"><datalist id="metros"></datalist></label>
+    <button id="reset" type="button">Reset filters</button>
+  </div>
+  <div class="quick">
+    <span>Period:</span>
+    <button type="button" data-start="2015-01-01">Since 2015</button>
+    <button type="button" data-start="2020-01-01" class="on">Since January 2020</button>
+    <button type="button" data-start="2022-01-01">Since January 2022</button>
+    <button type="button" data-start="last12">Last 12 months</button>
+    <span id="share-note">The address bar carries your filters, so copy it to share this view.</span>
   </div>
 
   <div class="kpis">
@@ -35,11 +52,27 @@
     <div class="kpi"><div class="label">Metros more than 5% below peak</div><div class="value" id="k_below"></div></div>
   </div>
 
+  <div class="spotlight" id="spot">
+    <div class="facts">
+      <button class="close" id="spot-close" type="button">Close</button>
+      <h3 id="spot-name"></h3>
+      <div id="spot-facts"></div>
+    </div>
+    <div><h3>Home value, this metro against the median of the metros in view</h3><canvas id="c_spot"></canvas></div>
+  </div>
+
+  <div class="map">
+    <h3>Share of metros more than 5% below their peak, by state</h3>
+    <p class="hint">Darker is a larger share of the state's metros below peak, within the current filters. Click a state to filter to it; click again to clear.</p>
+    <div id="map"></div>
+    <div class="legend"><span>0%</span><div class="bar" id="legend-bar"></div><span id="legend-max"></span><span id="map-note"></span></div>
+  </div>
+
   <div class="charts">
     <div class="chart"><h3>Median home value by month</h3><canvas id="c_line"></canvas></div>
     <div class="chart"><h3>Median change over the range, by region</h3><canvas id="c_region"></canvas></div>
-    <div class="chart"><h3>Ten largest changes over the range</h3><canvas id="c_top"></canvas></div>
-    <div class="chart"><h3>Ten smallest changes over the range</h3><canvas id="c_bottom"></canvas></div>
+    <div class="chart"><h3>Ten largest changes over the range</h3><p class="hint">Click a bar to spotlight the metro.</p><canvas id="c_top"></canvas></div>
+    <div class="chart"><h3>Ten smallest changes over the range</h3><p class="hint">Click a bar to spotlight the metro.</p><canvas id="c_bottom"></canvas></div>
   </div>
 
   <table id="tbl">
@@ -49,67 +82,222 @@
     <tbody></tbody>
   </table>
 
-  <p class="note">The table shows the 50 metros in view with the largest change over the range. The summary numbers
-     are defined in the report's About the data section: the median value across the metros in view for the last
-     month of the range; each metro's last-month value over its first-month value, minus one, with the median of
-     those changes reported; and the share of metros whose last-month value is more than 5 percent below their
-     highest value inside the range.</p>
+  <p class="note">The table shows the 50 metros in view with the largest change over the range; click a row to
+     spotlight the metro. The summary numbers are defined in the report's About the data section: the median
+     value across the metros in view for the last month of the range; each metro's last-month value over its
+     first-month value, minus one, with the median of those changes reported; and the share of metros whose
+     last-month value is more than 5 percent below their highest value inside the range.</p>
 </main>
 
 <script src="site.js"></script>
 <script>
 let rows = [];
+let months = [];
+let current = null;        // the latest summary
+let spotMetro = null;
+let lastSpot = null;
+let states = null;         // GeoJSON features
+let mapSvg = null;
+
+const STATE_ABBR = { Alabama: 'AL', Alaska: 'AK', Arizona: 'AZ', Arkansas: 'AR', California: 'CA', Colorado: 'CO',
+  Connecticut: 'CT', Delaware: 'DE', 'District of Columbia': 'DC', Florida: 'FL', Georgia: 'GA', Hawaii: 'HI',
+  Idaho: 'ID', Illinois: 'IL', Indiana: 'IN', Iowa: 'IA', Kansas: 'KS', Kentucky: 'KY', Louisiana: 'LA',
+  Maine: 'ME', Maryland: 'MD', Massachusetts: 'MA', Michigan: 'MI', Minnesota: 'MN', Mississippi: 'MS',
+  Missouri: 'MO', Montana: 'MT', Nebraska: 'NE', Nevada: 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+  'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', Ohio: 'OH', Oklahoma: 'OK',
+  Oregon: 'OR', Pennsylvania: 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD',
+  Tennessee: 'TN', Texas: 'TX', Utah: 'UT', Vermont: 'VT', Virginia: 'VA', Washington: 'WA',
+  'West Virginia': 'WV', Wisconsin: 'WI', Wyoming: 'WY' };
+
+const g = id => document.getElementById(id);
+const val = id => g(id).value;
 
 function fill(id, values, first) {
-  const sel = document.getElementById(id);
+  const sel = g(id);
   sel.innerHTML = '';
   if (first !== undefined) sel.add(new Option(first, ''));
   values.forEach(v => sel.add(new Option(id === 'start' || id === 'end' ? monthLabel(v) : v, v)));
 }
+
+// ---------- URL state ----------
+
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { region: p.get('region') || '', tier: p.get('tier') || '', state: p.get('state') || '',
+           start: p.get('start') || '2020-01-01', end: p.get('end') || months[months.length - 1],
+           metro: p.get('metro') || null };
+}
+
+function writeHash() {
+  const p = new URLSearchParams();
+  ['region', 'tier', 'state', 'start', 'end'].forEach(id => { if (val(id)) p.set(id, val(id)); });
+  if (spotMetro) p.set('metro', spotMetro);
+  history.replaceState(null, '', '#' + p.toString());
+}
+
+// ---------- setup ----------
 
 function setup() {
   const uniq = k => [...new Set(rows.map(r => r[k]))].sort();
   fill('region', uniq('census_region'), 'All regions');
   fill('tier', ['Top 50', '51 to 200', '201 and up'], 'All sizes');
   fill('state', uniq('state'), 'All states');
-  const months = uniq('month');
+  months = uniq('month');
   fill('start', months); fill('end', months);
-  document.getElementById('start').value = '2020-01-01';
-  document.getElementById('end').value = months[months.length - 1];
-  ['region', 'tier', 'state', 'start', 'end'].forEach(id =>
-    document.getElementById(id).addEventListener('change', update));
-  document.getElementById('reset').addEventListener('click', () => {
-    ['region', 'tier', 'state'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('start').value = '2020-01-01';
-    document.getElementById('end').value = months[months.length - 1];
+  const dl = g('metros');
+  uniq('metro').forEach(m => dl.appendChild(new Option(m)));
+
+  const h = readHash();
+  g('region').value = h.region; g('tier').value = h.tier; g('state').value = h.state;
+  g('start').value = months.includes(h.start) ? h.start : '2020-01-01';
+  g('end').value = months.includes(h.end) ? h.end : months[months.length - 1];
+  if (h.metro && uniq('metro').includes(h.metro)) spotMetro = h.metro;
+
+  ['region', 'tier', 'state', 'start', 'end'].forEach(id => g(id).addEventListener('change', update));
+  g('reset').addEventListener('click', () => {
+    ['region', 'tier', 'state'].forEach(id => g(id).value = '');
+    g('start').value = '2020-01-01';
+    g('end').value = months[months.length - 1];
+    spotMetro = null;
+    update();
+  });
+  document.querySelectorAll('.quick button').forEach(b => b.addEventListener('click', () => {
+    const last = months[months.length - 1];
+    g('end').value = last;
+    g('start').value = b.dataset.start === 'last12' ? months[Math.max(0, months.length - 13)] : b.dataset.start;
+    update();
+  }));
+  g('search').addEventListener('change', () => {
+    const name = g('search').value.trim();
+    if (uniq('metro').includes(name)) { spotMetro = name; g('search').value = ''; update(); }
+  });
+  g('spot-close').addEventListener('click', () => { spotMetro = null; update(); });
+  g('tbl').addEventListener('click', ev => {
+    const tr = ev.target.closest('tr');
+    if (tr && tr.dataset.metro) { spotMetro = tr.dataset.metro; update(); }
+  });
+  addEventListener('hashchange', () => {
+    const h2 = readHash();
+    g('region').value = h2.region; g('tier').value = h2.tier; g('state').value = h2.state;
+    g('start').value = months.includes(h2.start) ? h2.start : '2020-01-01';
+    g('end').value = months.includes(h2.end) ? h2.end : months[months.length - 1];
+    spotMetro = h2.metro && uniq('metro').includes(h2.metro) ? h2.metro : null;
     update();
   });
   update();
+  fetch('https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/states-10m.json').then(r => r.json()).then(topo => {
+    states = topojson.feature(topo, topo.objects.states).features;
+    drawMap();
+  }).catch(() => { g('map-note').textContent = 'The map could not load.'; });
+}
+
+// ---------- the view ----------
+
+function currentView(ignoreState) {
+  const region = val('region'), tier = val('tier'), state = ignoreState ? '' : val('state');
+  let start = val('start'), end = val('end');
+  if (start > end) { [start, end] = [end, start]; }
+  return rows.filter(r => (!region || r.census_region === region) && (!tier || r.size_tier === tier)
+                       && (!state || r.state === state) && r.month >= start && r.month <= end);
 }
 
 function update() {
-  const g = id => document.getElementById(id).value;
-  const region = g('region'), tier = g('tier'), state = g('state');
-  let start = g('start'), end = g('end');
-  if (start > end) { [start, end] = [end, start]; }
-  const view = rows.filter(r => (!region || r.census_region === region) && (!tier || r.size_tier === tier)
-                             && (!state || r.state === state) && r.month >= start && r.month <= end);
-  const s = summarize(view);
+  const s = summarize(currentView(false));
+  current = s;
   writeKpis(s.kpis);
+  document.querySelectorAll('.quick button').forEach(b => {
+    const want = b.dataset.start === 'last12' ? months[Math.max(0, months.length - 13)] : b.dataset.start;
+    b.classList.toggle('on', val('start') === want && val('end') === months[months.length - 1]);
+  });
 
-  lineChart('c_line', s.months.map(monthLabel), s.months.map(m => median(s.byMonth.get(m))));
+  lineChart('c_line', s.months.map(monthLabel), [{ data: s.months.map(m => median(s.byMonth.get(m))) }]);
   const regions = ['Northeast', 'Midwest', 'South', 'West'].filter(r => s.metros.some(m => m.region === r));
   barChart('c_region', regions, regions.map(r => median(s.metros.filter(m => m.region === r).map(m => m.change))));
+  const spot = metro => { spotMetro = metro; update(); };
   const top = s.metros.slice(0, 10), bottom = s.metros.slice(-10).reverse();
-  barChart('c_top', top.map(m => m.metro), top.map(m => m.change));
-  barChart('c_bottom', bottom.map(m => m.metro), bottom.map(m => m.change));
+  barChart('c_top', top.map(m => m.metro), top.map(m => m.change), { onClick: spot });
+  barChart('c_bottom', bottom.map(m => m.metro), bottom.map(m => m.change), { onClick: spot });
 
   document.querySelector('#tbl tbody').innerHTML = s.metros.slice(0, 50).map(m =>
-    `<tr><td>${m.metro}</td><td>${m.state}</td><td>${m.region}</td>` +
+    `<tr data-metro="${m.metro.replace(/"/g, '&quot;')}"><td>${m.metro}</td><td>${m.state}</td><td>${m.region}</td>` +
     `<td class="num">${fmtMoney(m.first)}</td><td class="num">${fmtMoney(m.last)}</td>` +
     `<td class="num">${fmtPct(m.change)}</td><td class="num">${fmtPct(m.fromPeak)}</td></tr>`).join('');
+
+  renderSpotlight(s);
+  if (states) drawMap();
+  writeHash();
 }
 
+// ---------- spotlight ----------
+
+function renderSpotlight(s) {
+  const box = g('spot');
+  if (!spotMetro) { box.classList.remove('on'); return; }
+  let start = val('start'), end = val('end');
+  if (start > end) { [start, end] = [end, start]; }
+  const mine = rows.filter(r => r.metro === spotMetro && r.month >= start && r.month <= end);
+  if (!mine.length) { box.classList.remove('on'); return; }
+  const m = summarize(mine).metros[0];
+  box.classList.add('on');
+  g('spot-name').textContent = spotMetro;
+  const inView = s.metros.some(x => x.metro === spotMetro);
+  g('spot-facts').innerHTML =
+    `<div>${m.region}, ${m.tier === 'Top 50' ? 'one of the 50 largest metros' : 'size rank ' + m.rank}${inView ? '' : ', outside the current filters'}</div>` +
+    `<div>${monthLabel(m.firstMonth)}: <strong>${fmtMoney(m.first)}</strong></div>` +
+    `<div>${monthLabel(m.lastMonth)}: <strong>${fmtMoney(m.last)}</strong></div>` +
+    `<div>Change over the range: <strong>${fmtPct(m.change)}</strong></div>` +
+    `<div>Peak in range: ${fmtMoney(m.peak)} in ${monthLabel(m.peakMonth)}</div>` +
+    `<div>From peak: <strong style="color:${m.fromPeak < -5 ? css('--down') : css('--up')}">${fmtPct(m.fromPeak)}</strong>` +
+    `${m.fromPeak < -5 ? ', more than 5% below' : ''}</div>`;
+  const byMonth = new Map(mine.map(r => [r.month, r.home_value]));
+  const labels = s.months.length ? s.months : [...byMonth.keys()].sort();
+  lineChart('c_spot', labels.map(monthLabel), [
+    { label: spotMetro, data: labels.map(mo => byMonth.get(mo) ?? null), color: m.fromPeak < -5 ? css('--down') : css('--up') },
+    { label: 'Median of metros in view', data: labels.map(mo => s.byMonth.has(mo) ? median(s.byMonth.get(mo)) : null), color: css('--muted'), dash: true }
+  ]);
+  if (lastSpot !== spotMetro) { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); lastSpot = spotMetro; }
+}
+
+// ---------- the map ----------
+
+function drawMap() {
+  const s = summarize(currentView(true));      // all states, within the other filters
+  const byState = new Map();
+  for (const m of s.metros) {
+    if (!byState.has(m.state)) byState.set(m.state, { n: 0, below: 0 });
+    const b = byState.get(m.state); b.n++; if (m.fromPeak < -5) b.below++;
+  }
+  const share = st => byState.has(st) ? 100 * byState.get(st).below / byState.get(st).n : null;
+  const max = Math.max(5, ...[...byState.keys()].map(share));
+  const color = d3.scaleLinear().domain([0, max]).range([css('--grid'), css('--down')]);
+  const selected = val('state');
+
+  const width = 960, height = 600;
+  if (!mapSvg) {
+    mapSvg = d3.select('#map').append('svg').attr('viewBox', `0 0 ${width} ${height}`);
+    const path = d3.geoPath(d3.geoAlbersUsa().scale(1280).translate([width / 2, height / 2]));
+    mapSvg.selectAll('path').data(states).join('path').attr('d', path)
+      .on('click', (ev, d) => {
+        const abbr = STATE_ABBR[d.properties.name];
+        g('state').value = (val('state') === abbr) ? '' : (abbr || '');
+        update();
+      })
+      .append('title');
+  }
+  mapSvg.selectAll('path')
+    .attr('fill', d => { const v = share(STATE_ABBR[d.properties.name]); return v == null ? css('--line') : color(v); })
+    .classed('selected', d => STATE_ABBR[d.properties.name] === selected && selected !== '')
+    .select('title').text(d => {
+      const abbr = STATE_ABBR[d.properties.name], b = byState.get(abbr);
+      return b ? `${d.properties.name}: ${b.below} of ${b.n} metros more than 5% below peak (${(100 * b.below / b.n).toFixed(0)}%)`
+               : `${d.properties.name}: no metros in the current filters`;
+    });
+  g('legend-bar').style.background = `linear-gradient(to right, ${css('--grid')}, ${css('--down')})`;
+  g('legend-max').textContent = max.toFixed(0) + '%';
+  g('map-note').textContent = selected ? `Filtered to ${selected}.` : '';
+}
+
+initPage(() => update());
 loadRows().then(r => { rows = r; setup(); });
 </script>
 </body>

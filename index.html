@@ -4,14 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Metro home values: report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <nav>
-  <span class="brand">Metro home values</span>
-  <a href="index.html" class="active">Report</a>
-  <a href="dashboard.html">Dashboard</a>
+  <div class="inner">
+    <span class="brand">Metro home values</span>
+    <a href="index.html" class="active">Report</a>
+    <a href="dashboard.html">Dashboard</a>
+    <button id="theme" type="button">Dark mode</button>
+  </div>
+  <div id="progress"></div>
 </nav>
 <header>
   <h1>Where has the pandemic housing boom held, and where has it reversed?</h1>
@@ -36,7 +42,7 @@
     <div class="kpi"><div class="label">Metros more than 5% below peak</div><div class="value" id="k_below"></div></div>
   </div>
 
-  <section class="finding">
+  <section class="finding reveal">
     <h2>The median metro is up half since January 2020 and is still rising</h2>
     <p>The median home value across the 894 metros rose from $169,626 in January 2020 to $255,438 in August 2026,
        a gain of 50.6 percent, and August 2026 is the highest month in the series. The median of each metro's own
@@ -46,7 +52,7 @@
     <div class="chart"><h3>Median home value across metros, by month</h3><canvas id="c_line"></canvas></div>
   </section>
 
-  <section class="finding">
+  <section class="finding reveal">
     <h2>The reversal is a Southern and Western story</h2>
     <p>Every region gained over the period, with the median metro up 59.1 percent in the Northeast, 53.6 percent in
        the Midwest, 47.0 percent in the South, and 46.9 percent in the West. The difference is in what has happened
@@ -56,7 +62,7 @@
     <div class="chart"><h3>Share of metros more than 5% below their peak, by region</h3><canvas id="c_region"></canvas></div>
   </section>
 
-  <section class="finding">
+  <section class="finding reveal">
     <h2>Among the 50 largest metros, Hartford leads and Austin has given back the most</h2>
     <p>Hartford, CT gained 71.4 percent since January 2020 and was at its high in August 2026. Austin, TX gained
        26.3 percent over the same period but is 26.8 percent below its June 2022 peak, the largest drop among the
@@ -64,10 +70,11 @@
        percent), and Denver (9.0 percent). Fifteen of the 49 large metros in the file are more than 5 percent below
        their peak, a higher share than among smaller metros (11.6 and 13.7 percent in the two smaller tiers), so the reversal is concentrated in
        the markets that boomed hardest.</p>
-    <div class="chart tall"><h3>Distance from peak since 2020, the 50 largest metros</h3><canvas id="c_top50"></canvas></div>
+    <div class="chart tall"><h3>Distance from peak since 2020, the 50 largest metros</h3>
+      <p class="hint">Click a bar to open that metro on the dashboard.</p><canvas id="c_top50"></canvas></div>
   </section>
 
-  <section class="about">
+  <section class="about reveal">
     <h2>About the data</h2>
     <p><strong>Where the data come from.</strong> Zillow Research publishes the Zillow Home Value Index (ZHVI) at
        zillow.com/research/data. The file used here is the all-homes, middle-tier, smoothed, seasonally adjusted
@@ -94,21 +101,27 @@
 
 <script src="site.js"></script>
 <script>
-loadRows().then(rows => {
-  const view = rows.filter(r => r.month >= '2020-01-01' && r.month <= '2026-08-01');
-  const s = summarize(view);
-  writeKpis(s.kpis);
+let summary = null;
 
-  lineChart('c_line', s.months.map(monthLabel), s.months.map(m => median(s.byMonth.get(m))));
-
+function render() {
+  const s = summary;
+  lineChart('c_line', s.months.map(monthLabel), [{ data: s.months.map(m => median(s.byMonth.get(m))) }]);
   const regions = ['Northeast', 'Midwest', 'South', 'West'];
   barChart('c_region', regions, regions.map(r => {
     const ms = s.metros.filter(m => m.region === r);
     return 100 * ms.filter(m => m.fromPeak < -5).length / ms.length;
   }), { horizontal: false, thickness: 60 });
-
   const top50 = s.metros.filter(m => m.tier === 'Top 50').sort((a, b) => a.fromPeak - b.fromPeak);
-  barChart('c_top50', top50.map(m => m.metro), top50.map(m => m.fromPeak), { thickness: 9 });
+  barChart('c_top50', top50.map(m => m.metro), top50.map(m => m.fromPeak),
+           { thickness: 9, onClick: metro => { location.href = 'dashboard.html#metro=' + encodeURIComponent(metro); } });
+}
+
+initPage(() => { if (summary) render(); });
+loadRows().then(rows => {
+  const view = rows.filter(r => r.month >= '2020-01-01' && r.month <= '2026-08-01');
+  summary = summarize(view);
+  writeKpis(summary.kpis);
+  render();
 });
 </script>
 </body>
